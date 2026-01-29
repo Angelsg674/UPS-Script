@@ -73,7 +73,6 @@ def main():
     # Prep values
     df[contact_col] = df[contact_col].fillna("UNASSIGNED")
 
-    # --- FILTER OUT GROUP/HEADER ROWS ---
     identifier_masks = []
     for c in [ip_col, mac_col, unit_serial_col, unit_model_col, battery_type_col]:
         if c:
@@ -106,9 +105,6 @@ def main():
     df["battery_bucket"] = df["battery_days"].apply(bucket)
     df["unit_bucket"] = df["unit_days"].apply(bucket)
 
-    # -----------------------------------------------------------
-    # FIX: Enforce logical sort order for buckets (0-3, 3-6, etc.)
-    # -----------------------------------------------------------
     logical_order = [
         "0_3_MONTHS",
         "3_6_MONTHS",
@@ -117,7 +113,6 @@ def main():
         "OVERDUE",
     ]
     # Convert to categorical so sorting respects the list above
-    # Any value NOT in this list (like "NO_DATE") becomes NaN and is dropped later.
     df["battery_bucket"] = pd.Categorical(df["battery_bucket"], categories=logical_order, ordered=True)
     df["unit_bucket"] = pd.Categorical(df["unit_bucket"], categories=logical_order, ordered=True)
 
@@ -193,7 +188,6 @@ def main():
     # Overall counts
     summary_lines.append("=== OVERALL COUNTS (ALL CONTACTS) ===")
     
-    # Note: dropna=True ensures NaNs/No_Dates are hidden, matching original style
     # sort=False ensures it respects the 0-3, 3-6, ... logical order
     summary_lines.append(
         format_counts(
@@ -215,7 +209,7 @@ def main():
         summary_lines.append("")
     else:
         summary_lines.append("NOC Battery buckets by MDF/IDF:")
-        # Pivot table (reverted dropna to default behavior to hide Unassigned/NaNs)
+        # Pivot table 
         pivot_bat = pd.crosstab(noc_bat["closet_type"], noc_bat["battery_bucket"])
         summary_lines.append(pivot_bat.to_string())
         summary_lines.append("")
