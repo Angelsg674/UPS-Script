@@ -1,0 +1,12 @@
+# Ignore Python temporary files
+__pycache__/
+*.pyc
+
+# Ignore output folders
+out/
+
+# Ignore Excel data files (to protect privacy and keep repo light)
+*.xlsx
+
+# Ignore system files
+.DS_Store
