@@ -30,18 +30,61 @@ def to_date(series: pd.Series) -> pd.Series:
     return pd.to_datetime(series, errors="coerce").dt.normalize()
 
 
-def bucket(days) -> str:
-    if pd.isna(days):
+# -------------------------
+# NEW BUCKETING (requested)
+# -------------------------
+FISCAL_YEAR_START_MONTH = 7  # July 1 fiscal year start
+
+
+def fiscal_year_end(today: pd.Timestamp) -> pd.Timestamp:
+    """
+    Fiscal year starts July 1.
+    If today is on/after July 1, fiscal year ends June 30 next year.
+    If today is before July 1, fiscal year ends June 30 this year.
+    """
+    today = pd.Timestamp(today).normalize()
+    y = today.year
+    end_year = (y + 1) if today.month >= FISCAL_YEAR_START_MONTH else y
+    return pd.Timestamp(end_year, 6, 30)
+
+
+def calendar_year_end(today: pd.Timestamp) -> pd.Timestamp:
+    today = pd.Timestamp(today).normalize()
+    return pd.Timestamp(today.year, 12, 31)
+
+
+def bucket_due(due_date, today: pd.Timestamp) -> str:
+    """
+    Returns:
+      - OVERDUE
+      - BY_FISCAL_YEAR_END
+      - BY_CALENDAR_YEAR_END
+      - BEYOND_YEAR_ENDS
+      - NO_DATE
+    Uses the day the script is run (today).
+    """
+    if pd.isna(due_date):
         return "NO_DATE"
-    if days < 0:
+
+    due = pd.Timestamp(due_date).normalize()
+    today = pd.Timestamp(today).normalize()
+
+    if due < today:
         return "OVERDUE"
-    if days <= 90:
-        return "0_3_MONTHS"
-    if days <= 180:
-        return "3_6_MONTHS"
-    if days <= 365:
-        return "6_12_MONTHS"
-    return "12_PLUS_MONTHS"
+
+    fy_end = fiscal_year_end(today)
+    cal_end = calendar_year_end(today)
+
+    # If due date qualifies for BOTH, choose the earlier deadline bucket
+    if due <= min(fy_end, cal_end):
+        return "BY_CALENDAR_YEAR_END" if cal_end <= fy_end else "BY_FISCAL_YEAR_END"
+
+    if due <= fy_end:
+        return "BY_FISCAL_YEAR_END"
+    if due <= cal_end:
+        return "BY_CALENDAR_YEAR_END"
+
+    return "BEYOND_YEAR_ENDS"
 
 
 def write_bucket_csv(group_df: pd.DataFrame, out_path: Path, cols: list[str]):

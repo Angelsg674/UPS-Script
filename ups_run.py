@@ -7,7 +7,7 @@ from ups_utils import (
     find_col,
     safe_name,
     to_date,
-    bucket,
+    bucket_due,              # CHANGED
     write_bucket_csv,
     not_blank,
     classify_idf_mdf,
@@ -97,22 +97,18 @@ def main():
     df[battery_due_col] = to_date(df[battery_due_col])
     df[unit_due_col] = to_date(df[unit_due_col])
 
-    # Days until due
-    df["battery_days"] = (df[battery_due_col] - today).dt.days
-    df["unit_days"] = (df[unit_due_col] - today).dt.days
-
-    # Buckets
-    df["battery_bucket"] = df["battery_days"].apply(bucket)
-    df["unit_bucket"] = df["unit_days"].apply(bucket)
+    # -------------------------
+    # CHANGED: new bucket labels
+    # -------------------------
+    df["battery_bucket"] = df[battery_due_col].apply(lambda d: bucket_due(d, today))
+    df["unit_bucket"] = df[unit_due_col].apply(lambda d: bucket_due(d, today))
 
     logical_order = [
-        "0_3_MONTHS",
-        "3_6_MONTHS",
-        "6_12_MONTHS",
-        "12_PLUS_MONTHS",
+        "BY_CALENDAR_YEAR_END",
+        "BY_FISCAL_YEAR_END",
+        "BEYOND_YEAR_ENDS",
         "OVERDUE",
     ]
-    # Convert to categorical so sorting respects the list above
     df["battery_bucket"] = pd.Categorical(df["battery_bucket"], categories=logical_order, ordered=True)
     df["unit_bucket"] = pd.Categorical(df["unit_bucket"], categories=logical_order, ordered=True)
 
@@ -125,8 +121,8 @@ def main():
     within_year = (df[unit_due_col] - df[battery_due_col]).abs().dt.days <= 365
     prefer_unit_due_to_proximity = both_dates_present & within_year
 
-    # Rule 2: If BOTH are overdue, only log unit
-    both_overdue = (df["battery_days"] < 0) & (df["unit_days"] < 0)
+    # Rule 2: If BOTH are overdue, only log unit (CHANGED: no more *_days columns)
+    both_overdue = (df[battery_due_col] < today) & (df[unit_due_col] < today)
 
     # Final: suppress battery logging if either rule applies
     df["suppress_battery"] = prefer_unit_due_to_proximity | both_overdue
@@ -187,8 +183,7 @@ def main():
 
     # Overall counts
     summary_lines.append("=== OVERALL COUNTS (ALL CONTACTS) ===")
-    
-    # sort=False ensures it respects the 0-3, 3-6, ... logical order
+
     summary_lines.append(
         format_counts(
             "Battery buckets",
@@ -209,7 +204,6 @@ def main():
         summary_lines.append("")
     else:
         summary_lines.append("NOC Battery buckets by MDF/IDF:")
-        # Pivot table 
         pivot_bat = pd.crosstab(noc_bat["closet_type"], noc_bat["battery_bucket"])
         summary_lines.append(pivot_bat.to_string())
         summary_lines.append("")
@@ -238,14 +232,14 @@ def main():
         summary_lines.append("None (all rows are NOC or UNASSIGNED).")
     else:
         actionable_other = other_df[
-            other_df["battery_bucket"].isin(["OVERDUE", "0_3_MONTHS", "3_6_MONTHS", "6_12_MONTHS"])
-            | other_df["unit_bucket"].isin(["OVERDUE", "0_3_MONTHS", "3_6_MONTHS", "6_12_MONTHS"])
+            other_df["battery_bucket"].isin(["OVERDUE", "BY_FISCAL_YEAR_END", "BY_CALENDAR_YEAR_END"])
+            | other_df["unit_bucket"].isin(["OVERDUE", "BY_FISCAL_YEAR_END", "BY_CALENDAR_YEAR_END"])
         ]
         if len(actionable_other) == 0:
-            summary_lines.append("No actionable items for non-NOC contacts (everything is 12+ months out).")
+            summary_lines.append("No actionable items for non-NOC contacts (everything is beyond year-ends).")
         else:
             counts = actionable_other[contact_col].value_counts(dropna=True)
-            summary_lines.append("Actionable rows by Contact (within 12 months or overdue):")
+            summary_lines.append("Actionable rows by Contact (overdue or due by fiscal/calendar year end):")
             summary_lines.append(counts.to_string())
 
     (out_root / "summary.txt").write_text("\n".join(summary_lines), encoding="utf-8")
