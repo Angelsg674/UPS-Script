@@ -2,7 +2,7 @@
 
 I wrote this script to stop manually filtering that massive UPS Smartsheet export.
 
-Instead of staring at a 5,000-row spreadsheet, this script takes the raw export and splits it into clean, separate CSV files for every technician/contact. It tells them exactly what is **Overdue**, due in **0-3 Months**, etc., without them having to search for it.
+Instead of staring at a 5,000-row spreadsheet, this script takes the raw export and splits it into clean, separate CSV files for every technician/contact. It tells them exactly what is **Overdue**, due in **by_calendar_year**, etc., without them having to search for it.
 
 ### What it actually does
 1. **Splits by Contact:** It looks at the "Contact" column and makes a folder for every person (e.g., \`out/01-28-2026/by_contact/john_doe\`).
